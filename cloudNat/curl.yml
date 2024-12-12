@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: curl-test-script
+data:
+  get_status.sh: |
+    #!/bin/sh
+    ENDPOINT=$1 # テスト対象のエンドポイント # 引数で指定
+    DURATION=$2 # 実行時間（秒）           # 引数で指定
+
+    while true; do
+      # 現在の時刻を取得（ISO 8601形式）
+      TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+      # ステータスコードを取得
+      STATUS=$(curl -s -o /dev/null -w "%{http_code}" $ENDPOINT)
+
+      # JSON形式で出力
+      echo "{\"timestamp\": \"$TIMESTAMP\", \"endpoint\": \"$ENDPOINT\", \"status_code\": \"$STATUS\"}" # ステータスコードを出力
+
+      sleep $DURATION
+    done
+
+    echo "Test completed!"
+
+  get_source_ip.sh: |
+    #!/bin/sh
+    DURATION=$1 # 実行時間（秒）# 引数で指定
+
+    while true; do
+      # 現在の時刻を取得（ISO 8601形式）
+      TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+      # ソースIPを取得
+      SOURCE_IP=$(curl -s ifconfig.me)
+
+      # JSON形式で出力
+      echo "{\"timestamp\": \"$TIMESTAMP\", \"endpoint\": \"$ENDPOINT\", \"source_ip\": \"$SOURCE_IP\"}"
+
+      sleep $DURATION
+    done
+
+    echo "Test completed!"
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: curl-test
+spec:
+  replicas: 1 # 並列数はここで調整
+  selector:
+    matchLabels:
+      app: curl-test
+  template:
+    metadata:
+      labels:
+        app: curl-test
+    spec:
+      containers:
+      - name: curl-container
+        image: curlimages/curl:latest
+        command: ["sh", "/scripts/get_source_ip.sh", "1"] # テスト対象のエンドポイントと実行時間を指定
+        volumeMounts:
+        - name: script-volume
+          mountPath: /scripts
+          readOnly: true
+      volumes:
+      - name: script-volume
+        configMap:
+          name: curl-test-script
